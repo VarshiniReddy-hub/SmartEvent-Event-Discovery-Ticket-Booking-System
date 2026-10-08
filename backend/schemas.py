@@ -21,7 +21,8 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    email: EmailStr
+    email: str
+    role: str
     created_at: datetime
 
     class Config:
@@ -53,12 +54,67 @@ class Token(BaseModel):
 class EventCreate(BaseModel):
     title: str = Field(min_length=2, max_length=200)
     description: str = Field(min_length=5)
-    category: Literal["Music", "Tech", "Sports", "Business"]
+
+    category: Literal[
+        "Music",
+        "Tech",
+        "Sports",
+        "Business"
+    ]
+
     location: str = Field(min_length=2, max_length=200)
+
     event_date: datetime
+
     ticket_price: float = Field(gt=0)
+
     banner_image: str | None = None
+
     total_tickets: int = Field(gt=0)
+
+
+# =========================
+# EVENT UPDATE
+# =========================
+
+class EventUpdate(BaseModel):
+    title: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=200
+    )
+
+    description: str | None = Field(
+        default=None,
+        min_length=5
+    )
+
+    category: Literal[
+        "Music",
+        "Tech",
+        "Sports",
+        "Business"
+    ] | None = None
+
+    location: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=200
+    )
+
+    event_date: datetime | None = None
+
+    ticket_price: float | None = Field(
+        default=None,
+        gt=0
+    )
+
+    banner_image: str | None = None
+
+    total_tickets: int | None = Field(
+        default=None,
+        gt=0
+    )
 
 
 # =========================
@@ -76,6 +132,8 @@ class EventResponse(BaseModel):
     banner_image: str | None
     total_tickets: int
     available_tickets: int
+    organizer_id: int | None
+    event_status: str
     created_at: datetime
 
     class Config:

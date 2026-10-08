@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,10 @@ router = APIRouter(
 )
 
 
-# Get all notifications
+# =========================
+# GET MY NOTIFICATIONS
+# =========================
+
 @router.get(
     "",
     response_model=list[NotificationResponse]
@@ -25,7 +28,10 @@ def get_my_notifications(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     notifications = (
         db.query(Notification)
@@ -41,7 +47,10 @@ def get_my_notifications(
     return notifications
 
 
-# Get unread notification count
+# =========================
+# GET UNREAD COUNT
+# =========================
+
 @router.get(
     "/unread-count"
 )
@@ -51,7 +60,10 @@ def get_unread_count(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     count = (
         db.query(Notification)
@@ -67,10 +79,12 @@ def get_unread_count(
     }
 
 
-# Mark notification as read
+# =========================
+# MARK NOTIFICATION AS READ
+# =========================
+
 @router.patch(
-    "/{notification_id}/read",
-    response_model=NotificationResponse
+    "/{notification_id}/read"
 )
 def mark_notification_as_read(
     notification_id: int,
@@ -79,7 +93,10 @@ def mark_notification_as_read(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     notification = (
         db.query(Notification)
@@ -92,7 +109,7 @@ def mark_notification_as_read(
 
     if not notification:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found"
         )
 

@@ -15,7 +15,7 @@ from routers.events import router as events_router
 from routers.bookings import router as bookings_router
 from routers.tickets import router as tickets_router
 from routers.notifications import router as notifications_router
-
+from routers.organizer import router as organizer_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -159,7 +159,7 @@ app.include_router(events_router)
 app.include_router(bookings_router)
 app.include_router(tickets_router)
 app.include_router(notifications_router)
-
+app.include_router(organizer_router)
 
 @app.get("/")
 def root():

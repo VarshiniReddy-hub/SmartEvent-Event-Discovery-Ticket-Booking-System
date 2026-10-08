@@ -1,3 +1,4 @@
+
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -16,6 +17,14 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(150), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+
+    # Phase 2: Role
+    role = Column(
+        String(20),
+        default="USER",
+        nullable=False
+    )
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bookings = relationship(
@@ -30,6 +39,11 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    organized_events = relationship(
+        "Event",
+        back_populates="organizer"
+    )
+
 
 # =========================
 # EVENT MODEL
@@ -39,6 +53,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True, index=True)
+
     title = Column(String(200), nullable=False, index=True)
     description = Column(Text, nullable=False)
     category = Column(String(50), nullable=False, index=True)
@@ -50,7 +65,26 @@ class Event(Base):
     total_tickets = Column(Integer, nullable=False)
     available_tickets = Column(Integer, nullable=False)
 
+    # Phase 2: Organizer
+    organizer_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    # Phase 2: Event status
+    event_status = Column(
+        String(20),
+        default="UPCOMING",
+        nullable=False
+    )
+
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    organizer = relationship(
+        "User",
+        back_populates="organized_events"
+    )
 
     bookings = relationship(
         "Booking",

@@ -1,9 +1,16 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Event
-from schemas import EventCreate, EventResponse
+from models import Event, Booking
+from schemas import (
+    EventCreate,
+    EventResponse,
+    EventUpdate,
+    BookingResponse
+)
+from security import require_role
 
 
 router = APIRouter(
@@ -12,6 +19,11 @@ router = APIRouter(
 )
 
 
+# =========================
+# CREATE EVENT
+# ORGANIZER ONLY
+# =========================
+
 @router.post(
     "",
     response_model=EventResponse,
@@ -19,6 +31,7 @@ router = APIRouter(
 )
 def create_event(
     event_data: EventCreate,
+    current_user=Depends(require_role("ORGANIZER")),
     db: Session = Depends(get_db)
 ):
 
@@ -31,7 +44,9 @@ def create_event(
         ticket_price=event_data.ticket_price,
         banner_image=event_data.banner_image,
         total_tickets=event_data.total_tickets,
-        available_tickets=event_data.total_tickets
+        available_tickets=event_data.total_tickets,
+        organizer_id=current_user.id,
+        event_status="UPCOMING"
     )
 
     db.add(new_event)
@@ -40,6 +55,11 @@ def create_event(
 
     return new_event
 
+
+# =========================
+# GET ALL EVENTS
+# PUBLIC
+# =========================
 
 @router.get(
     "",
@@ -68,6 +88,10 @@ def get_events(
     ).all()
 
 
+# =========================
+# GET SINGLE EVENT
+# =========================
+
 @router.get(
     "/{event_id}",
     response_model=EventResponse
@@ -77,9 +101,11 @@ def get_event(
     db: Session = Depends(get_db)
 ):
 
-    event = db.query(Event).filter(
-        Event.id == event_id
-    ).first()
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
 
     if not event:
         raise HTTPException(
@@ -88,3 +114,186 @@ def get_event(
         )
 
     return event
+
+
+# =========================
+# UPDATE EVENT
+# ORGANIZER ONLY
+# =========================
+
+@router.put(
+    "/{event_id}",
+    response_model=EventResponse
+)
+def update_event(
+    event_id: int,
+    event_data: EventUpdate,
+    current_user=Depends(require_role("ORGANIZER")),
+    db: Session = Depends(get_db)
+):
+
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
+
+    if not event:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only modify your own events"
+        )
+
+    if event.event_status == "CANCELLED":
+        raise HTTPException(
+            status_code=400,
+            detail="Cancelled events cannot be updated"
+        )
+
+    update_data = event_data.model_dump(
+        exclude_unset=True
+    )
+
+    for field, value in update_data.items():
+
+        if field == "total_tickets":
+
+            tickets_sold = (
+                event.total_tickets -
+                event.available_tickets
+            )
+
+            if value < tickets_sold:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Total tickets cannot be less than tickets already sold"
+                )
+
+            event.available_tickets = value - tickets_sold
+
+        setattr(event, field, value)
+
+    db.commit()
+    db.refresh(event)
+
+    return event
+
+
+# =========================
+# CANCEL EVENT
+# ORGANIZER ONLY
+# =========================
+
+@router.patch(
+    "/{event_id}/cancel",
+    response_model=EventResponse
+)
+def cancel_event(
+    event_id: int,
+    current_user=Depends(require_role("ORGANIZER")),
+    db: Session = Depends(get_db)
+):
+
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
+
+    if not event:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only cancel your own events"
+        )
+
+    if event.event_status == "CANCELLED":
+        raise HTTPException(
+            status_code=400,
+            detail="Event is already cancelled"
+        )
+
+    event.event_status = "CANCELLED"
+
+    db.commit()
+    db.refresh(event)
+
+    return event
+
+
+# =========================
+# GET ORGANIZER EVENTS
+# ORGANIZER ONLY
+# =========================
+
+@router.get(
+    "/organizer/my-events",
+    response_model=list[EventResponse]
+)
+def get_my_events(
+    current_user=Depends(require_role("ORGANIZER")),
+    db: Session = Depends(get_db)
+):
+
+    events = (
+        db.query(Event)
+        .filter(Event.organizer_id == current_user.id)
+        .order_by(Event.event_date.asc())
+        .all()
+    )
+
+    return events
+
+
+# =========================
+# GET BOOKINGS FOR ORGANIZER EVENT
+# ORGANIZER ONLY
+# =========================
+
+@router.get(
+    "/organizer/{event_id}/bookings",
+    response_model=list[BookingResponse]
+)
+def get_event_bookings(
+    event_id: int,
+    current_user=Depends(require_role("ORGANIZER")),
+    db: Session = Depends(get_db)
+):
+
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
+
+    if not event:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
+    if event.organizer_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only view bookings for your own events"
+        )
+
+    bookings = (
+        db.query(Booking)
+        .filter(Booking.event_id == event_id)
+        .all()
+    )
+
+    return bookings
+

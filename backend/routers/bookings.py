@@ -18,6 +18,10 @@ router = APIRouter(
 )
 
 
+# =========================
+# CREATE BOOKING
+# =========================
+
 @router.post(
     "",
     response_model=BookingResponse,
@@ -30,7 +34,11 @@ def create_booking(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    # Get logged-in user
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     # Check user
     user = db.query(User).filter(
@@ -52,6 +60,20 @@ def create_booking(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
+        )
+
+    # Check if event is cancelled
+    if event.event_status == "CANCELLED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot book a cancelled event"
+        )
+
+    # Check ticket quantity
+    if booking_data.ticket_quantity <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ticket quantity must be greater than 0"
         )
 
     # Check ticket availability
@@ -83,7 +105,7 @@ def create_booking(
 
     db.add(new_booking)
 
-    # Get booking ID before creating ticket
+    # Get booking ID
     db.flush()
 
     # =========================
@@ -151,13 +173,20 @@ def create_booking(
 
     db.add(notification)
 
-    # Save everything
+    # =========================
+    # SAVE EVERYTHING
+    # =========================
+
     db.commit()
 
     db.refresh(new_booking)
 
     return new_booking
 
+
+# =========================
+# GET MY BOOKINGS
+# =========================
 
 @router.get(
     "/my-bookings",
@@ -169,7 +198,10 @@ def get_my_bookings(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     bookings = (
         db.query(Booking)
@@ -185,6 +217,10 @@ def get_my_bookings(
     return bookings
 
 
+# =========================
+# GET SINGLE BOOKING
+# =========================
+
 @router.get(
     "/{booking_id}",
     response_model=BookingResponse
@@ -196,7 +232,10 @@ def get_booking(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     booking = (
         db.query(Booking)
@@ -212,6 +251,7 @@ def get_booking(
             detail="Booking not found"
         )
 
+    # Check ownership
     if booking.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -224,6 +264,10 @@ def get_booking(
     return booking
 
 
+# =========================
+# CANCEL BOOKING
+# =========================
+
 @router.patch(
     "/{booking_id}/cancel",
     response_model=BookingResponse
@@ -235,7 +279,10 @@ def cancel_booking(
     ),
     db: Session = Depends(get_db)
 ):
-    user_id = get_current_user_id(credentials)
+    user_id = get_current_user_id(
+        credentials=credentials,
+        db=db
+    )
 
     booking = (
         db.query(Booking)
